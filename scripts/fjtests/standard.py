@@ -120,7 +120,8 @@ tests = [
         description="parallel fibonacci toy test",
         runs=[
             test_run(name="fibonacci 32", args=["32"], timeout=60),
-            test_run(name="fibonacci 41", args=["41"], thread_count=full_half, timeout=60),
+            test_run(name="fibonacci 41", args=["41"], thread_count=full_half,
+                     is_benchmarked=True, timeout=60),
         ]
     ),
 ]

@@ -44,7 +44,8 @@ benchmark_runs = 1
 benchmark_times = {
     'nqueens 14':      17.158,
     'quicksort large': 19.81442,
-    'mergesort large': 22.33417
+    'mergesort large': 22.33417,
+    'fibonacci 41':    5.000,
 }
 
 tests = load_test_module('standard')
@@ -61,7 +62,7 @@ Usage: %s [options]
     -V              Print Version and exit
     -a              Run benchmark anyway even if machine is not idle
     -r              Only run required tests.
-    -h              Show help 
+    -h              Show help
     -p              <file> - Location of threadpool implementation, default ./threadpool.c
     -l              List available tests
     -t              Filter test by name, given as a comma separated list.
@@ -78,7 +79,7 @@ except getopt.GetoptError as err:
 runfilter = lambda test : True
 ignore_if_not_idle = False
 
-for opt, arg in opts: 
+for opt, arg in opts:
     if opt == "-r":
         oldrunfilter = runfilter
         runfilter = lambda test: test.is_required and oldrunfilter(test)
@@ -193,7 +194,7 @@ def check_software_engineering(objfile, allowedsymbols):
         if m.group(1) == "T":
             if m.group(2) in allowedsymbols:
                 continue
-            
+
             if grade_mode:
                 op = open(results_file, 'w')
                 op.write(json.dumps({'error': 'defines global function %s' % m.group(2)}))
@@ -209,8 +210,8 @@ def check_software_engineering(objfile, allowedsymbols):
                 +", but you define: %s") % (objfile, m.group(2)))
 
 allowedsymbols = [ "future_free", "future_get",
-                   "thread_pool_new", "thread_pool_shutdown_and_destroy", 
-                   "thread_pool_submit" ] 
+                   "thread_pool_new", "thread_pool_shutdown_and_destroy",
+                   "thread_pool_submit" ]
 
 #
 # build it (like check.py)
@@ -353,7 +354,7 @@ def run_single_test(test, run, threads):
 
         outfile = 'runresult.%d.json' % (proc.pid)
         addrundata({'stdout': stdout.decode()})
-        if len(stderr) > 0: 
+        if len(stderr) > 0:
             addrundata({'stderr': stderr.decode()})
 
         if not os.access(outfile, os.R_OK):
@@ -367,7 +368,7 @@ def run_single_test(test, run, threads):
             addrundata(json.loads(data))
             os.unlink(outfile)
     return rundata
-    
+
 def average_run(runs):
     data = {
         'nthreads': runs[0]['nthreads'],
@@ -476,7 +477,7 @@ def find_thread_run(perthreadresults, threadcount):
     return next(filter(lambda result: result['nthreads'] == threadcount, perthreadresults), None)
 
 def print_grade_table(results, tests):
-    # report the results of running each tests with 
+    # report the results of running each tests with
     thread_headers = [1, 2, 4, 8, 16, 32]
     print ('')
     print ('Test name:' + (16 * ' ') + ''.join(map(lambda x: '%-10s' % str(x), thread_headers)))
@@ -494,7 +495,7 @@ def print_grade_table(results, tests):
             print ('%s: could not find test data!' % test.name)
         res = results[test.name]
         print ('%s:' % test.name.upper() + '  ' + test.description)
-    
+
         passed = True
         for run in test.runs:
             statuses = []
@@ -511,7 +512,7 @@ def print_grade_table(results, tests):
                     statuses.append('[X]')
 
             print ('  %-23s' % (run.name) + ''.join(map(lambda x: '%-10s' % x, statuses)))
-        
+
         if not passed and test.is_required:
             minimum_requirements = False
 
@@ -530,7 +531,7 @@ if verbose:
 
 if not ignore_if_not_idle:
     wait_for_load_to_go_down()
-    
+
 results = run_tests(tests)
 if verbose:
     print_results(results)
