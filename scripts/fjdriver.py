@@ -61,11 +61,14 @@ Usage: %s [options]
     -v              Verbose
     -V              Print Version and exit
     -a              Run benchmark anyway even if machine is not idle
-    -r              Only run required tests.
+    -r              Only run required tests
     -h              Show help
-    -p              <file> - Location of threadpool implementation, default ./threadpool.c
+    -p threadpool   Location of threadpool implementation, default ./threadpool.c
+    -o output       Destination of benchmark output, default full-results.json
+    -g              Enable grading mode
+    -B number       Repeat tests this number of times (only in grading mode)
     -l              List available tests
-    -t              Filter test by name, given as a comma separated list.
+    -t list         Filter tests by name, given as a comma separated list
                     e.g.: -t basic1,psum
     """ % (sys.argv[0]))
 
@@ -266,6 +269,12 @@ def set_threadlimit(nthreads):
         resource.setrlimit(resource.RLIMIT_NPROC, (nthreads, nthreads))
     return limit_threads
 
+def decode(output):
+    try:
+        return output.decode()
+    except UnicodeDecodeError as e:
+        return e
+
 def run_single_test(test, run, threads):
     cmdline = ['timeout', str(run.timeout), test.command, '-n', str(threads)] + run.args
     rundata = {
@@ -305,7 +314,7 @@ def run_single_test(test, run, threads):
     signum = proc.returncode - 128
     if proc.returncode < 0:
         signum = -proc.returncode
-    if proc.returncode >= 128 or proc.returncode < 0 and signum in signames:
+    if (proc.returncode >= 128 or proc.returncode < 0) and signum in signames:
         timeoutmsg = ''
         if runningtime >= run.timeout:
             timeoutmsg = '\nProgram ran and most likely timed out at %.3fs' % (runningtime)
@@ -316,7 +325,7 @@ def run_single_test(test, run, threads):
         %s
         StdErr output:
         %s
-        """ % (signum, signames[signum], timeoutmsg, stdout.decode(), stderr.decode())
+        """ % (signum, signames[signum], timeoutmsg, decode(stdout), decode(stderr))
         addrundata({
             'error': error
         })
@@ -338,7 +347,7 @@ def run_single_test(test, run, threads):
         %s
         StdErr output:
         %s
-        """ % (proc.returncode, timeoutmsg, stdout.decode(), stderr.decode())
+        """ % (proc.returncode, timeoutmsg, decode(stdout), decode(stderr))
 
         addrundata({
             'error': error
@@ -353,9 +362,9 @@ def run_single_test(test, run, threads):
             print ('[+]')
 
         outfile = 'runresult.%d.json' % (proc.pid)
-        addrundata({'stdout': stdout.decode()})
+        addrundata({'stdout': decode(stdout)})
         if len(stderr) > 0:
-            addrundata({'stderr': stderr.decode()})
+            addrundata({'stderr': decode(stderr)})
 
         if not os.access(outfile, os.R_OK):
             addrundata({

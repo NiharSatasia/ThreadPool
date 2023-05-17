@@ -3,12 +3,13 @@
 # Run threadpool_test6 under valgrind, check for leaks
 #
 
-import sys, subprocess, re, os
+import sys, subprocess, re, os, tempfile
 
-valgrind_cmd = ["valgrind", "--fair-sched=yes", "--leak-check=full", "--suppressions=sigaltstack.suppression", "./threadpool_test6"]
+with tempfile.NamedTemporaryFile('w+') as fp:
+    valgrind_cmd = ["valgrind", "--fair-sched=yes", "--leak-check=full", "--suppressions=sigaltstack.suppression", f"--log-file={fp.name}", "./threadpool_test6"]
+    proc = subprocess.run(valgrind_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    output = fp.read()
 
-proc = subprocess.Popen(valgrind_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-stdout, stderr = proc.communicate()
 if proc.returncode != 0:
     print("test did not exit with zero", file=sys.stderr)
     sys.exit(proc.returncode)
@@ -25,7 +26,7 @@ if proc.returncode != 0:
 # All heap blocks were freed -- no leaks are possible
 
 reports = set()
-for line in stderr.decode().split('\n'):
+for line in output.split('\n'):
     line = line.strip()
     m = re.match(r'==(\d+)==\s+(\S.*): (\d+) bytes in (\d+) blocks', line)
     if m:
