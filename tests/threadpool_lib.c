@@ -154,6 +154,14 @@ void report_benchmark_results_to_human(FILE *f, struct benchmark_data *bdata)
     fprintf(f, "real time: %ld.%06lds\n", bdata->diff.tv_sec, bdata->diff.tv_usec);
 }
 
+/* returns overall CPU consumption in usec */
+uint64_t get_overall_cpu_consumption(struct benchmark_data *bdata)
+{
+    struct timeval total;
+    timeradd(&bdata->rdiff.ru_utime, &bdata->rdiff.ru_stime, &total);
+    return total.tv_sec * 1000000 + total.tv_usec;
+}
+
 /* FIXME: this code is Linux/64bit only. */
 static void
 catch_segfault(int signo, siginfo_t *info, void * _ctxt)

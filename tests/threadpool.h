@@ -11,7 +11,9 @@
 struct thread_pool;
 struct future;
 
-/* Create a new thread pool with no more than n threads. */
+/* Create a new thread pool with no more than n threads. 
+ * If any of the threads cannot be created, print
+ * an error message and return NULL. */
 struct thread_pool * thread_pool_new(int nthreads);
 
 /* 

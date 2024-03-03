@@ -295,7 +295,7 @@ def run_single_test(test, run, threads):
     # we set it to #threads + 1 (for the main thread)
     # plus existing procs
     starttime = time.time()
-    preexec_fn=set_threadlimit(threads + 2 + number_of_existing_processes) if test.limit_threads \
+    preexec_fn = set_threadlimit(threads + 2 + number_of_existing_processes) if test.limit_threads \
                 else (lambda : None)
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, stdin=infile,

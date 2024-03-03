@@ -8,6 +8,7 @@ mergesort.c
 nqueens.c
 psum_test.c
 quicksort.c
+simpson.c
 threadpool.h
 threadpool_lib.c
 threadpool_lib.h
@@ -18,4 +19,7 @@ threadpool_test4.c
 threadpool_test5.c
 threadpool_test6.c
 threadpool_test6.py
+threadpool_test7.c
+threadpool_test8.c
+threadpool_test9.c
 sigaltstack.suppression

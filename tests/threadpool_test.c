@@ -21,6 +21,8 @@
 #include "threadpool_lib.h"
 #define DEFAULT_THREADS 1
 
+static pthread_t main_thread;
+
 /* Data to be passed to callable. */
 struct arg2 {
     uintptr_t a;
@@ -33,6 +35,12 @@ struct arg2 {
 static void *
 adder_task(struct thread_pool *pool, struct arg2 * data)
 {
+    if (pthread_equal(pthread_self(), main_thread)) {
+        fprintf(stderr, "It appears that your pool allows external threads such as the main\n"
+                        "thread to help with the execution of tasks.  As per specification\n"
+                        "only internal worker threads should execute tasks.\n");
+        abort();
+    }    
     return (void *)(data->a + data->b);
 }
 
@@ -40,6 +48,8 @@ static int
 run_test(int nthreads)
 {
     struct benchmark_data * bdata = start_benchmark();
+    main_thread = pthread_self();
+
     struct thread_pool * threadpool = thread_pool_new(nthreads);
    
     struct arg2 args = {

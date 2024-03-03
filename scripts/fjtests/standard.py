@@ -71,6 +71,37 @@ tests = [
         ]
     ),
     threadpool_test(
+        name="basic7",
+        command="./threadpool_test7",
+        description="Basic functionality testing (7)",
+        is_required = True,
+        limit_threads = False,
+        runs=[
+            test_run(name="basic test 7", args=[], thread_count=[2,4,8])
+        ]
+    ),
+    threadpool_test(
+        name="basic8",
+        command="./threadpool_test8",
+        description="Basic functionality testing (8)",
+        is_required = True,
+        limit_threads = False,
+        runs=[
+            test_run(name="basic test 8 (4 pools)", args=["-p", str(4)], thread_count=[2,4,8]),
+            test_run(name="basic test 8 (8 pools)", args=["-p", str(8)], thread_count=[2,4,8]),
+            test_run(name="basic test 8 (16 pools)", args=["-p", str(16)], thread_count=[2,4,8])
+        ]
+    ),
+    threadpool_test(
+        name="basic9",
+        command="./threadpool_test9",
+        description="Basic functionality testing (9)",
+        is_required = True,
+        runs=[
+            test_run(name="basic test 9", args=[], thread_count=[2,4])
+        ]
+    ),
+    threadpool_test(
         name="mergesort",
         command="./mergesort",
         description="parallel mergesort",
@@ -112,6 +143,15 @@ tests = [
             test_run(name="nqueens 13", args=["13"], thread_count=full_half_quarter, timeout=60),
             test_run(name="nqueens 14", args=["14"], thread_count=full_half,
                 is_benchmarked=True, timeout=60),
+        ]
+    ),
+    threadpool_test(
+        name="simpson",
+        command="./simpson",
+        description="parallel Simpson integration",
+        runs=[
+            test_run(name="simpson", args=[], thread_count=full_half_quarter,
+                     is_benchmarked=True, timeout=60),
         ]
     ),
     threadpool_test(

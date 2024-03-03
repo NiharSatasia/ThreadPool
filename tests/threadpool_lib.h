@@ -1,5 +1,6 @@
 #include <time.h>
 #include <stdio.h>
+#include <stdint.h>
 
 /**
  * These functions are mostly used by the tests and test driver.
@@ -13,6 +14,7 @@ struct benchmark_data * start_benchmark(void);
 void stop_benchmark(struct benchmark_data * bdata);
 void report_benchmark_results(struct benchmark_data *bdata);
 void report_benchmark_results_to_human(FILE *file, struct benchmark_data *bdata);
+uint64_t get_overall_cpu_consumption(struct benchmark_data *bdata);
 
 /* Worker threads can install this handler to guess whether a segmentation
  * fault may be the result of stack overflow. */
