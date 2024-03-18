@@ -283,6 +283,297 @@ static bool execute_task(struct thread_pool *pool)
 }
 
 /* Current Test Results
+Starting test: Basic functionality testing (1)
+================================================================================
+Running: timeout 15 ./threadpool_test -n 1 [+]
+Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 4 [+]
+
+Starting test: Basic functionality testing (2)
+================================================================================
+Running: timeout 15 ./threadpool_test2 -n 1 [+]
+Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 4 [+]
+
+Starting test: Basic functionality testing (3)
+================================================================================
+Running: timeout 15 ./threadpool_test3 -n 1 [+]
+Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 4 [+]
+
+Starting test: Basic functionality testing (4)
+================================================================================
+Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 4 [+]
+
+Starting test: Basic functionality testing (5)
+================================================================================
+Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 4 [+]
+
+Starting test: Basic functionality testing (6)
+================================================================================
+Running: timeout 15 ./threadpool_test6.py -n 1 [+]
+
+Starting test: Basic functionality testing (7)
+================================================================================
+Running: timeout 15 ./threadpool_test7 -n 2 [+]
+Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 8 [+]
+
+Starting test: Basic functionality testing (8)
+================================================================================
+Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
+
+Starting test: Basic functionality testing (9)
+================================================================================
+Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 4 [+]
+
+Starting test: parallel mergesort
+================================================================================
+Running: timeout 15 ./mergesort -n 1 -s 44 3000000 [+]
+Running: timeout 15 ./mergesort -n 2 -s 44 3000000 [+]
+Running: timeout 15 ./mergesort -n 4 -s 44 3000000 [+]
+Running: timeout 15 ./mergesort -n 8 -s 44 3000000 [+]
+Running: timeout 15 ./mergesort -n 16 -s 44 3000000 [+]
+Running: timeout 15 ./mergesort -n 1 -s 44 30000000 [+]
+Running: timeout 15 ./mergesort -n 2 -s 44 30000000 [+]
+Running: timeout 15 ./mergesort -n 4 -s 44 30000000 [+]
+Running: timeout 15 ./mergesort -n 8 -s 44 30000000 [+]
+Running: timeout 15 ./mergesort -n 16 -s 44 30000000 [+]
+Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
+
+Starting test: parallel quicksort
+================================================================================
+Running: timeout 15 ./quicksort -n 1 -s 44 -d 12 3000000 [+]
+Running: timeout 15 ./quicksort -n 2 -s 44 -d 12 3000000 [+]
+Running: timeout 15 ./quicksort -n 4 -s 44 -d 12 3000000 [+]
+Running: timeout 15 ./quicksort -n 8 -s 44 -d 12 3000000 [+]
+Running: timeout 15 ./quicksort -n 16 -s 44 -d 12 3000000 [+]
+Running: timeout 15 ./quicksort -n 1 -s 44 -d 15 30000000 [+]
+Running: timeout 15 ./quicksort -n 2 -s 44 -d 15 30000000 [+]
+Running: timeout 15 ./quicksort -n 4 -s 44 -d 15 30000000 [ ]
+        Program terminated with signal 6 (SIGABRT) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
+        
+Running: timeout 15 ./quicksort -n 8 -s 44 -d 15 30000000 [ ]
+        Program terminated with signal 6 (SIGABRT) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
+        
+Running: timeout 15 ./quicksort -n 16 -s 44 -d 15 30000000 [+]
+Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [ ]
+        Program terminated with signal 6 (SIGABRT) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
+        
+
+Starting test: parallel sum using divide-and-conquer
+================================================================================
+Running: timeout 15 ./psum_test -n 1 10000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 15 ./psum_test -n 2 10000000 [+]
+Running: timeout 15 ./psum_test -n 4 10000000 [+]
+Running: timeout 15 ./psum_test -n 8 10000000 [+]
+Running: timeout 15 ./psum_test -n 16 10000000 [+]
+Running: timeout 15 ./psum_test -n 1 100000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 15 ./psum_test -n 2 100000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 15 ./psum_test -n 4 100000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 15 ./psum_test -n 8 100000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 15 ./psum_test -n 16 100000000 [+]
+Running: timeout 60 ./psum_test -n 8 1000000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./psum_test -n 16 1000000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./psum_test -n 32 1000000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+
+Starting test: parallel n-queens solver
+================================================================================
+Running: timeout 15 ./nqueens -n 1 11 [+]
+Running: timeout 15 ./nqueens -n 2 11 [+]
+Running: timeout 15 ./nqueens -n 4 11 [+]
+Running: timeout 15 ./nqueens -n 8 11 [+]
+Running: timeout 15 ./nqueens -n 16 11 [+]
+Running: timeout 60 ./nqueens -n 1 12 [+]
+Running: timeout 60 ./nqueens -n 2 12 [+]
+Running: timeout 60 ./nqueens -n 4 12 [+]
+Running: timeout 60 ./nqueens -n 8 12 [+]
+Running: timeout 60 ./nqueens -n 16 12 [+]
+Running: timeout 60 ./nqueens -n 8 13 [+]
+Running: timeout 60 ./nqueens -n 16 13 [+]
+Running: timeout 60 ./nqueens -n 32 13 [+]
+Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 32 14 [+]
+
+Starting test: parallel Simpson integration
+================================================================================
+Running: timeout 60 ./simpson -n 8 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+
+Starting test: parallel fibonacci toy test
+================================================================================
+Running: timeout 60 ./fib_test -n 1 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 2 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 4 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 8 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 16 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 16 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 32 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+
 Test name:                1         2         4         8         16        32        
 ================================================================================
 BASIC1:  Basic functionality testing (1)
@@ -308,11 +599,11 @@ BASIC9:  Basic functionality testing (9)
 MERGESORT:  parallel mergesort
   mergesort small        [X]       [X]       [X]       [X]       [X]                 
   mergesort medium       [X]       [X]       [X]       [X]       [X]                 
-  mergesort large                                      [ ]       [8.598s]  [7.366s]  
+  mergesort large                                      [ ]       [8.411s]  [7.133s]  
 QUICKSORT:  parallel quicksort
   quicksort small        [X]       [X]       [X]       [X]       [X]                 
-  quicksort medium       [X]       [X]       [X]       [X]       [X]                 
-  quicksort large                                      [ ]       [ ]       [ ]       
+  quicksort medium       [X]       [X]       [ ]       [ ]       [X]                 
+  quicksort large                                      [6.973s]  [6.958s]  [ ]       
 PSUM:  parallel sum using divide-and-conquer
   psum_test small        [ ]       [X]       [X]       [X]       [X]                 
   psum_test medium       [ ]       [ ]       [ ]       [ ]       [X]                 
@@ -321,7 +612,7 @@ NQUEENS:  parallel n-queens solver
   nqueens 11             [X]       [X]       [X]       [X]       [X]                 
   nqueens 12             [X]       [X]       [X]       [X]       [X]                 
   nqueens 13                                           [X]       [X]       [X]       
-  nqueens 14                                                     [10.215s] [5.972s]  
+  nqueens 14                                                     [10.330s] [5.942s]  
 SIMPSON:  parallel Simpson integration
   simpson                                              [ ]       [ ]       [ ]       
 FIBONACCI:  parallel fibonacci toy test
@@ -329,6 +620,6 @@ FIBONACCI:  parallel fibonacci toy test
   fibonacci 41                                                   [ ]       [ ]       
 ================================================================================
 You have met minimum requirements, your performance score will count.
-Wrote full results to fj_testdir_2024-03-18_13:43:41.564840/full-results.json
+Wrote full results to fj_testdir_2024-03-18_14:30:35.588040/full-results.json
 
 */
