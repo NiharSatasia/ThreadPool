@@ -27,7 +27,9 @@ struct thread_pool
     struct list global_queue;
     pthread_cond_t cond_thread_pool;
     int shutdownFlag;
-    pthread_t *workers;
+    pthread_t *worker_threads;
+    //struct worker **worker;
+    struct list **worker_queues;
     int nthreads;
 };
 
@@ -46,6 +48,8 @@ struct worker
     struct thread_pool *pool_worker;
     struct list local_queue;
     pthread_mutex_t lock_local_queue;
+    pthread_cond_t cond_local_queue;
+    //int number;
 };
 
 /*
@@ -73,6 +77,9 @@ struct future
 
 // thread_local variable to keep track of which thread is executing
 static thread_local int internal_worker_thread = 0;
+
+//thread_local worker struct to keep track of worker
+static thread_local struct worker * current_worker;
 
 // Helper functions
 static void *start_routine(void *arg);
@@ -108,7 +115,8 @@ struct thread_pool *thread_pool_new(int nthreads)
     pthread_mutex_init(&pool->lock_global_queue, NULL);
     pthread_cond_init(&pool->cond_thread_pool, NULL);
     list_init(&pool->global_queue);
-    pool->workers = malloc(sizeof(pthread_t) * nthreads);
+    pool->worker_threads = malloc(sizeof(pthread_t) * nthreads);
+    pool->worker_queues = malloc(sizeof(struct list) * nthreads);
     pool->nthreads = nthreads;
     pool->shutdownFlag = 0;
 
@@ -117,7 +125,13 @@ struct thread_pool *thread_pool_new(int nthreads)
     // Creating worker threads
     for (int i = 0; i < nthreads; i++)
     {
-        if (pthread_create(&pool->workers[i], NULL, start_routine, pool) != 0)
+        // workers[i]->pool_worker = pool;
+        // workers[i]->number = i;
+        // list_init(workers[i]->local_queue);
+        // pthread_mutex_init(workers[i]->lock_local_queue, NULL);
+        // pthread_cond_init(workers[i]->cond_local_queue, NULL);
+        pool->worker_queues[i] = NULL;
+        if (pthread_create(&pool->worker_threads[i], NULL, start_routine, pool) != 0)
         {
             fprintf(stderr, "failed to create a thread");
             return NULL;
@@ -146,11 +160,11 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
     // Join the worker threads
     for (int i = 0; i < pool->nthreads; i++)
     {
-        pthread_join(pool->workers[i], NULL);
+        pthread_join(pool->worker_threads[i], NULL);
     }
 
-    // Free 
-    free(pool->workers);
+    // Free -- need to also free each worker
+    free(pool->worker_threads);
     free(pool);
 }
 
@@ -166,6 +180,8 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
  */
 struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void *data)
 {
+  //need to do for work stealing, find way to assign work to a worker
+
     pthread_mutex_lock(&pool->lock_global_queue);
     struct future *fut = malloc(sizeof(struct future));
 
@@ -178,10 +194,14 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
     fut->result = NULL;
     fut->readyFlag = 0;
 
-    // Add task to global queue and signal worker thread
-    list_push_back(&pool->global_queue, &fut->elem);
+    // Add task to global queue if in main thread, else local deque, and signal worker thread
+    if (current_worker != NULL) {
+      list_push_front(&current_worker->local_queue, &fut->elem);
+    }
+    else {
+      list_push_back(&pool->global_queue, &fut->elem);
+    }
     pthread_cond_signal(&pool->cond_thread_pool);
-
     pthread_mutex_unlock(&pool->lock_global_queue);
     return fut;
 }
@@ -217,7 +237,7 @@ void *future_get(struct future *fut)
         }
     }
 
-    pthread_mutex_unlock(&fut->lock_future);\
+    pthread_mutex_unlock(&fut->lock_future);
     return fut->result;
 }
 
@@ -228,9 +248,52 @@ void future_free(struct future *fut)
 }
 
 // Static helper function for worker thread routine. Executes tasks from global queue, if empty then waits for tasks.
+//find and execute futures until the pool shuts down, sleeping if there are no tasks -- TA
 static void *start_routine(void *arg)
 {
     struct thread_pool *pool = (struct thread_pool *)arg;
+    if (current_worker == NULL) {
+      current_worker = malloc(sizeof(struct worker));
+      current_worker->pool_worker = pool;
+      list_init(&current_worker->local_queue);
+      pthread_mutex_init(&current_worker->lock_local_queue, NULL);
+      pthread_cond_init(&current_worker->cond_local_queue, NULL);
+      for (int i = 0; i < pool->nthreads; i++) {
+        if (pool->worker_queues[i] != NULL) {
+          pool->worker_queues[i] = &current_worker->local_queue;
+        }
+      }
+    }
+
+    //while loop executing tasks in local deque -- thinking while sutdown flag == 0, check local deque, then global queue, then other workers deques
+    while (pool->shutdownFlag == 0) {
+      //if local deque not empty pop its task
+      if (!list_empty(&current_worker->local_queue)) {
+        struct list_elem *task_elem = list_pop_front(&current_worker->local_queue);
+        struct future *fut = list_entry(task_elem, struct future, elem);
+        fut->result = fut->task(pool, fut->args);
+        fut->readyFlag = 1;
+      }
+      //if local deque was empty, then pop task from global queue
+      else if (!list_empty(&pool->global_queue)) {
+        struct list_elem *task_elem = list_pop_back(&pool->global_queue);
+        struct future *fut = list_entry(task_elem, struct future, elem);
+        fut->result = fut->task(pool, fut->args);
+        fut->readyFlag = 1;
+      }
+      //else steal a task from another workers deque
+      else {
+        for (int i = 0; i < pool->nthreads; i++) {
+          if (!list_empty(pool->worker_queues[i])) {
+            struct list_elem *task_elem = list_pop_back(pool->worker_queues[i]);
+            struct future *fut = list_entry(task_elem, struct future, elem);
+            fut->result = fut->task(pool, fut->args);
+            fut->readyFlag = 1;
+          }
+        }
+      }
+    }
+
     internal_worker_thread = 1;
     while (1)
     {
@@ -265,7 +328,7 @@ static bool execute_task(struct thread_pool *pool)
     if (!list_empty(&pool->global_queue))
     {
         // Pop first task from global queue and unlock
-        struct list_elem *task_elem = list_pop_front(&pool->global_queue);
+        struct list_elem *task_elem = list_pop_back(&pool->global_queue);
         struct future *fut = list_entry(task_elem, struct future, elem);
         pthread_mutex_unlock(&pool->lock_global_queue);
 
@@ -277,6 +340,7 @@ static bool execute_task(struct thread_pool *pool)
         pthread_mutex_unlock(&fut->lock_future);
         return true;
     }
+    //else if check for if anyone else has tasks that can be stolen
 
     pthread_mutex_unlock(&pool->lock_global_queue);
     return false;
