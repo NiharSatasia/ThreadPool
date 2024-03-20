@@ -23,14 +23,12 @@
 */
 struct thread_pool
 {
-    pthread_mutex_t lock_global_queue;
-    struct list global_queue;
-    pthread_cond_t cond_thread_pool;
-    int shutdownFlag;
-    pthread_t *worker_threads;
-    //struct worker **worker;
-    struct list **worker_queues;
-    int nthreads;
+  pthread_mutex_t lock_global_queue;
+  struct list global_queue;
+  pthread_cond_t cond_thread_pool;
+  int shutdownFlag;
+  pthread_t *worker_threads;
+  int nthreads;
 };
 
 /*
@@ -45,11 +43,9 @@ struct thread_pool
 // Not being used in work sharing approach right now
 struct worker
 {
-    struct thread_pool *pool_worker;
-    struct list local_queue;
-    pthread_mutex_t lock_local_queue;
-    pthread_cond_t cond_local_queue;
-    //int number;
+  struct thread_pool *pool_worker;
+  struct list local_queue;
+  pthread_mutex_t lock_local_queue;
 };
 
 /*
@@ -63,23 +59,20 @@ the result: fut->result = fut->task(pool, fut->data);
 */
 struct future
 {
-    fork_join_task_t task; // typedef of a function pointer type that you will execute
-    void *args;            // the data from thread_pool_submit
-    void *result;          // will store task result once it completes execution
+  fork_join_task_t task; // typedef of a function pointer type that you will execute
+  void *args;            // the data from thread_pool_submit
+  void *result;          // will store task result once it completes execution
 
-    // may also need synchronization primitives (mutexes, semaphores, etc)
-    pthread_mutex_t lock_future;
-    pthread_cond_t cond_future;
-    struct list_elem elem;
-    int readyFlag;
-    struct thread_pool *pool_future;
+  // may also need synchronization primitives (mutexes, semaphores, etc)
+  pthread_mutex_t lock_future;
+  pthread_cond_t cond_future;
+  struct list_elem elem;
+  int readyFlag;
+  struct thread_pool *pool_future;
 };
 
 // thread_local variable to keep track of which thread is executing
 static thread_local int internal_worker_thread = 0;
-
-//thread_local worker struct to keep track of worker
-static thread_local struct worker * current_worker;
 
 // Helper functions
 static void *start_routine(void *arg);
@@ -104,71 +97,68 @@ int pthread_create(pthread_t *restrict thread,
                    void *restrict arg);
 */
 
-/* Create a new thread pool with no more than n threads. 
+/* Create a new thread pool with no more than n threads.
  * If any of the threads cannot be created, print
  * an error message and return NULL. */
 struct thread_pool *thread_pool_new(int nthreads)
 {
-    struct thread_pool *pool = malloc(sizeof(struct thread_pool));
+  struct thread_pool *pool = malloc(sizeof(struct thread_pool));
 
-    // Initializations
-    pthread_mutex_init(&pool->lock_global_queue, NULL);
-    pthread_cond_init(&pool->cond_thread_pool, NULL);
-    list_init(&pool->global_queue);
-    pool->worker_threads = malloc(sizeof(pthread_t) * nthreads);
-    pool->worker_queues = malloc(sizeof(struct list) * nthreads);
-    pool->nthreads = nthreads;
-    pool->shutdownFlag = 0;
+  // Initializations
+  pthread_mutex_init(&pool->lock_global_queue, NULL);
+  pthread_cond_init(&pool->cond_thread_pool, NULL);
+  list_init(&pool->global_queue);
+  pool->worker_threads = malloc(sizeof(pthread_t) * nthreads);
+  pool->nthreads = nthreads;
+  pool->shutdownFlag = 0;
 
-    pthread_mutex_lock(&pool->lock_global_queue);
+  pthread_mutex_lock(&pool->lock_global_queue);
 
-    // Creating worker threads
-    for (int i = 0; i < nthreads; i++)
+  // Creating worker threads
+  for (int i = 0; i < nthreads; i++)
+  {
+    if (pthread_create(&pool->worker_threads[i], NULL, start_routine, pool) != 0)
     {
-        // workers[i]->pool_worker = pool;
-        // workers[i]->number = i;
-        // list_init(workers[i]->local_queue);
-        // pthread_mutex_init(workers[i]->lock_local_queue, NULL);
-        // pthread_cond_init(workers[i]->cond_local_queue, NULL);
-        pool->worker_queues[i] = NULL;
-        if (pthread_create(&pool->worker_threads[i], NULL, start_routine, pool) != 0)
-        {
-            fprintf(stderr, "failed to create a thread");
-            return NULL;
-        }
+      fprintf(stderr, "failed to create a thread");
+      return NULL;
     }
+  }
 
-    pthread_mutex_unlock(&pool->lock_global_queue);
-    return pool;
+  pthread_mutex_unlock(&pool->lock_global_queue);
+  return pool;
 }
 
-/* 
- * Shutdown this thread pool in an orderly fashion.  
+/*
+ * Shutdown this thread pool in an orderly fashion.
  * Tasks that have been submitted but not executed may or
  * may not be executed.
  *
- * Deallocate the thread pool object before returning. 
+ * Deallocate the thread pool object before returning.
  */
 void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
 {
-    // Signal shutdown and broadcast to all worker threads
-    pthread_mutex_lock(&pool->lock_global_queue);
-    pool->shutdownFlag = 1;
-    pthread_cond_broadcast(&pool->cond_thread_pool);
-    pthread_mutex_unlock(&pool->lock_global_queue);
+  // Signal shutdown and broadcast to all worker threads
+  pthread_mutex_lock(&pool->lock_global_queue);
+  pool->shutdownFlag = 1;
+  pthread_cond_broadcast(&pool->cond_thread_pool);
+  pthread_mutex_unlock(&pool->lock_global_queue);
 
-    // Join the worker threads
-    for (int i = 0; i < pool->nthreads; i++)
-    {
-        pthread_join(pool->worker_threads[i], NULL);
-    }
+  // Join the worker threads
+  for (int i = 0; i < pool->nthreads; i++)
+  {
+    pthread_join(pool->worker_threads[i], NULL);
+  }
 
-    // Free -- need to also free each worker
-    free(pool->worker_threads);
-    free(pool);
+  // Destroy thread_pool struct created in thread_pool_new
+  pthread_mutex_destroy(&pool->lock_global_queue);
+  pthread_cond_destroy(&pool->cond_thread_pool);
+
+  // Free
+  free(pool->worker_threads);
+  free(pool);
 }
 
-/* 
+/*
  * Submit a fork join task to the thread pool and return a
  * future.  The returned future can be used in future_get()
  * to obtain the result.
@@ -180,30 +170,24 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
  */
 struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void *data)
 {
-  //need to do for work stealing, find way to assign work to a worker
+  pthread_mutex_lock(&pool->lock_global_queue);
+  struct future *fut = malloc(sizeof(struct future));
 
-    pthread_mutex_lock(&pool->lock_global_queue);
-    struct future *fut = malloc(sizeof(struct future));
+  // Initializations
+  pthread_mutex_init(&fut->lock_future, NULL);
+  pthread_cond_init(&fut->cond_future, NULL);
+  fut->pool_future = pool;
+  fut->task = task;
+  fut->args = data;
+  fut->result = NULL;
+  fut->readyFlag = 0;
 
-    // Initializations
-    pthread_mutex_init(&fut->lock_future, NULL);
-    pthread_cond_init(&fut->cond_future, NULL);
-    fut->pool_future = pool;
-    fut->task = task;
-    fut->args = data;
-    fut->result = NULL;
-    fut->readyFlag = 0;
+  // Add task to global queue and signal worker thread
+  list_push_back(&pool->global_queue, &fut->elem);
+  pthread_cond_signal(&pool->cond_thread_pool);
 
-    // Add task to global queue if in main thread, else local deque, and signal worker thread
-    if (current_worker != NULL) {
-      list_push_front(&current_worker->local_queue, &fut->elem);
-    }
-    else {
-      list_push_back(&pool->global_queue, &fut->elem);
-    }
-    pthread_cond_signal(&pool->cond_thread_pool);
-    pthread_mutex_unlock(&pool->lock_global_queue);
-    return fut;
+  pthread_mutex_unlock(&pool->lock_global_queue);
+  return fut;
 }
 
 /* Make sure that the thread pool has completed the execution
@@ -213,193 +197,270 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
  */
 void *future_get(struct future *fut)
 {
-    pthread_mutex_lock(&fut->lock_future);
-    while (fut->readyFlag == 0)
+  pthread_mutex_lock(&fut->lock_future);
+  while (fut->readyFlag == 0)
+  {
+    if (internal_worker_thread == 1)
     {
-        if (internal_worker_thread == 1)
+      // Unlock and execute task
+      pthread_mutex_unlock(&fut->lock_future);
+      if (execute_task(fut->pool_future) == false)
+      {
+        // If no task was executed lock and wait
+        pthread_mutex_lock(&fut->lock_future);
+        if (fut->readyFlag == 0)
         {
-            // Unlock and execute task
-            pthread_mutex_unlock(&fut->lock_future);
-            if (execute_task(fut->pool_future) == false)
-            {
-                // If no task was executed lock and wait
-                pthread_mutex_lock(&fut->lock_future);
-                if (fut->readyFlag == 0)
-                {
-                    pthread_cond_wait(&fut->cond_future, &fut->lock_future);
-                }
-            }
+          pthread_cond_wait(&fut->cond_future, &fut->lock_future);
         }
-        else
-        {
-            // Wait for task to complete
-            pthread_cond_wait(&fut->cond_future, &fut->lock_future);
-        }
+      }
+      else
+      {
+        // Lock back up again
+        pthread_mutex_lock(&fut->lock_future);
+      }
     }
+    else
+    {
+      // Wait for task to complete
+      pthread_cond_wait(&fut->cond_future, &fut->lock_future);
+    }
+  }
 
-    pthread_mutex_unlock(&fut->lock_future);
-    return fut->result;
+  pthread_mutex_unlock(&fut->lock_future);
+  return fut->result;
 }
 
 /* Deallocate this future.  Must be called after future_get() */
 void future_free(struct future *fut)
 {
-    free(fut);
+  // Destroy future struct created in thread_pool_submit
+  pthread_mutex_destroy(&fut->lock_future);
+  pthread_cond_destroy(&fut->cond_future);
+
+  free(fut);
 }
 
 // Static helper function for worker thread routine. Executes tasks from global queue, if empty then waits for tasks.
-//find and execute futures until the pool shuts down, sleeping if there are no tasks -- TA
 static void *start_routine(void *arg)
 {
-    struct thread_pool *pool = (struct thread_pool *)arg;
-    if (current_worker == NULL) {
-      current_worker = malloc(sizeof(struct worker));
-      current_worker->pool_worker = pool;
-      list_init(&current_worker->local_queue);
-      pthread_mutex_init(&current_worker->lock_local_queue, NULL);
-      pthread_cond_init(&current_worker->cond_local_queue, NULL);
-      for (int i = 0; i < pool->nthreads; i++) {
-        if (pool->worker_queues[i] != NULL) {
-          pool->worker_queues[i] = &current_worker->local_queue;
-        }
-      }
-    }
+  struct thread_pool *pool = (struct thread_pool *)arg;
+  internal_worker_thread = 1;
+  while (1)
+  {
+    pthread_mutex_lock(&pool->lock_global_queue);
 
-    //while loop executing tasks in local deque -- thinking while sutdown flag == 0, check local deque, then global queue, then other workers deques
-    while (pool->shutdownFlag == 0) {
-      //if local deque not empty pop its task
-      if (!list_empty(&current_worker->local_queue)) {
-        struct list_elem *task_elem = list_pop_front(&current_worker->local_queue);
-        struct future *fut = list_entry(task_elem, struct future, elem);
-        fut->result = fut->task(pool, fut->args);
-        fut->readyFlag = 1;
-      }
-      //if local deque was empty, then pop task from global queue
-      else if (!list_empty(&pool->global_queue)) {
-        struct list_elem *task_elem = list_pop_back(&pool->global_queue);
-        struct future *fut = list_entry(task_elem, struct future, elem);
-        fut->result = fut->task(pool, fut->args);
-        fut->readyFlag = 1;
-      }
-      //else steal a task from another workers deque
-      else {
-        for (int i = 0; i < pool->nthreads; i++) {
-          if (!list_empty(pool->worker_queues[i])) {
-            struct list_elem *task_elem = list_pop_back(pool->worker_queues[i]);
-            struct future *fut = list_entry(task_elem, struct future, elem);
-            fut->result = fut->task(pool, fut->args);
-            fut->readyFlag = 1;
-          }
-        }
-      }
-    }
-
-    internal_worker_thread = 1;
-    while (1)
+    // Wait for tasks or shutdown signal
+    while (list_empty(&pool->global_queue) && !pool->shutdownFlag)
     {
-        pthread_mutex_lock(&pool->lock_global_queue);
-
-        // Wait for tasks or shutdown signal
-        while (list_empty(&pool->global_queue) && !pool->shutdownFlag)
-        {
-            pthread_cond_wait(&pool->cond_thread_pool, &pool->lock_global_queue);
-        }
-        if (pool->shutdownFlag)
-        {
-            pthread_mutex_unlock(&pool->lock_global_queue);
-            return NULL;
-        }
-        pthread_mutex_unlock(&pool->lock_global_queue);
-
-        while (execute_task(pool) == true)
-        {
-            // Continue executing tasks until queue is empty
-        }
+      pthread_cond_wait(&pool->cond_thread_pool, &pool->lock_global_queue);
     }
-    return NULL;
+    if (pool->shutdownFlag)
+    {
+      pthread_mutex_unlock(&pool->lock_global_queue);
+      return NULL;
+    }
+    pthread_mutex_unlock(&pool->lock_global_queue);
+
+    while (execute_task(pool) == true)
+    {
+      // Continue executing tasks until queue is empty
+    }
+  }
+  return NULL;
 }
 
 // Another static helper function to execute tasks, returns true if a task was executed and false if queue is empty
 static bool execute_task(struct thread_pool *pool)
 {
-    pthread_mutex_lock(&pool->lock_global_queue);
+  pthread_mutex_lock(&pool->lock_global_queue);
 
-    // Check for tasks in the global queue
-    if (!list_empty(&pool->global_queue))
-    {
-        // Pop first task from global queue and unlock
-        struct list_elem *task_elem = list_pop_back(&pool->global_queue);
-        struct future *fut = list_entry(task_elem, struct future, elem);
-        pthread_mutex_unlock(&pool->lock_global_queue);
-
-        // Execute task and broadcast
-        fut->result = fut->task(pool, fut->args);
-        pthread_mutex_lock(&fut->lock_future);
-        fut->readyFlag = 1;
-        pthread_cond_broadcast(&fut->cond_future);
-        pthread_mutex_unlock(&fut->lock_future);
-        return true;
-    }
-    //else if check for if anyone else has tasks that can be stolen
-
+  // Check for tasks in the global queue
+  if (!list_empty(&pool->global_queue))
+  {
+    // Pop first task from global queue and unlock
+    struct list_elem *task_elem = list_pop_front(&pool->global_queue);
+    struct future *fut = list_entry(task_elem, struct future, elem);
     pthread_mutex_unlock(&pool->lock_global_queue);
-    return false;
+
+    // Execute task and broadcast
+    fut->result = fut->task(pool, fut->args);
+    pthread_mutex_lock(&fut->lock_future);
+    fut->readyFlag = 1;
+    pthread_cond_broadcast(&fut->cond_future);
+    pthread_mutex_unlock(&fut->lock_future);
+    return true;
+  }
+
+  pthread_mutex_unlock(&pool->lock_global_queue);
+  return false;
 }
 
 /* Current Test Results
 Starting test: Basic functionality testing (1)
 ================================================================================
 Running: timeout 15 ./threadpool_test -n 1 [+]
+Running: timeout 15 ./threadpool_test -n 1 [+]
+Running: timeout 15 ./threadpool_test -n 1 [+]
+Running: timeout 15 ./threadpool_test -n 1 [+]
+Running: timeout 15 ./threadpool_test -n 1 [+]
 Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 2 [+]
+Running: timeout 15 ./threadpool_test -n 4 [+]
+Running: timeout 15 ./threadpool_test -n 4 [+]
+Running: timeout 15 ./threadpool_test -n 4 [+]
+Running: timeout 15 ./threadpool_test -n 4 [+]
 Running: timeout 15 ./threadpool_test -n 4 [+]
 
 Starting test: Basic functionality testing (2)
 ================================================================================
 Running: timeout 15 ./threadpool_test2 -n 1 [+]
+Running: timeout 15 ./threadpool_test2 -n 1 [+]
+Running: timeout 15 ./threadpool_test2 -n 1 [+]
+Running: timeout 15 ./threadpool_test2 -n 1 [+]
+Running: timeout 15 ./threadpool_test2 -n 1 [+]
 Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 2 [+]
+Running: timeout 15 ./threadpool_test2 -n 4 [+]
+Running: timeout 15 ./threadpool_test2 -n 4 [+]
+Running: timeout 15 ./threadpool_test2 -n 4 [+]
+Running: timeout 15 ./threadpool_test2 -n 4 [+]
 Running: timeout 15 ./threadpool_test2 -n 4 [+]
 
 Starting test: Basic functionality testing (3)
 ================================================================================
 Running: timeout 15 ./threadpool_test3 -n 1 [+]
+Running: timeout 15 ./threadpool_test3 -n 1 [+]
+Running: timeout 15 ./threadpool_test3 -n 1 [+]
+Running: timeout 15 ./threadpool_test3 -n 1 [+]
+Running: timeout 15 ./threadpool_test3 -n 1 [+]
 Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 2 [+]
+Running: timeout 15 ./threadpool_test3 -n 4 [+]
+Running: timeout 15 ./threadpool_test3 -n 4 [+]
+Running: timeout 15 ./threadpool_test3 -n 4 [+]
+Running: timeout 15 ./threadpool_test3 -n 4 [+]
 Running: timeout 15 ./threadpool_test3 -n 4 [+]
 
 Starting test: Basic functionality testing (4)
 ================================================================================
 Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 2 [+]
+Running: timeout 15 ./threadpool_test4 -n 4 [+]
+Running: timeout 15 ./threadpool_test4 -n 4 [+]
+Running: timeout 15 ./threadpool_test4 -n 4 [+]
+Running: timeout 15 ./threadpool_test4 -n 4 [+]
 Running: timeout 15 ./threadpool_test4 -n 4 [+]
 
 Starting test: Basic functionality testing (5)
 ================================================================================
 Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 2 [+]
+Running: timeout 15 ./threadpool_test5 -n 4 [+]
+Running: timeout 15 ./threadpool_test5 -n 4 [+]
+Running: timeout 15 ./threadpool_test5 -n 4 [+]
+Running: timeout 15 ./threadpool_test5 -n 4 [+]
 Running: timeout 15 ./threadpool_test5 -n 4 [+]
 
 Starting test: Basic functionality testing (6)
 ================================================================================
 Running: timeout 15 ./threadpool_test6.py -n 1 [+]
+Running: timeout 15 ./threadpool_test6.py -n 1 [+]
+Running: timeout 15 ./threadpool_test6.py -n 1 [+]
+Running: timeout 15 ./threadpool_test6.py -n 1 [+]
+Running: timeout 15 ./threadpool_test6.py -n 1 [+]
 
 Starting test: Basic functionality testing (7)
 ================================================================================
 Running: timeout 15 ./threadpool_test7 -n 2 [+]
+Running: timeout 15 ./threadpool_test7 -n 2 [+]
+Running: timeout 15 ./threadpool_test7 -n 2 [+]
+Running: timeout 15 ./threadpool_test7 -n 2 [+]
+Running: timeout 15 ./threadpool_test7 -n 2 [+]
 Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 4 [+]
+Running: timeout 15 ./threadpool_test7 -n 8 [+]
+Running: timeout 15 ./threadpool_test7 -n 8 [+]
+Running: timeout 15 ./threadpool_test7 -n 8 [+]
+Running: timeout 15 ./threadpool_test7 -n 8 [+]
 Running: timeout 15 ./threadpool_test7 -n 8 [+]
 
 Starting test: Basic functionality testing (8)
 ================================================================================
 Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
 Running: timeout 15 ./threadpool_test8 -n 4 -p 4 [+]
 Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 4 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
 Running: timeout 15 ./threadpool_test8 -n 2 -p 8 [+]
 Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
 Running: timeout 15 ./threadpool_test8 -n 8 -p 8 [+]
 Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 2 -p 16 [+]
 Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 4 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
+Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
 Running: timeout 15 ./threadpool_test8 -n 8 -p 16 [+]
 
 Starting test: Basic functionality testing (9)
 ================================================================================
 Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 2 [+]
+Running: timeout 15 ./threadpool_test9 -n 4 [+]
+Running: timeout 15 ./threadpool_test9 -n 4 [+]
+Running: timeout 15 ./threadpool_test9 -n 4 [+]
+Running: timeout 15 ./threadpool_test9 -n 4 [+]
 Running: timeout 15 ./threadpool_test9 -n 4 [+]
 
 Starting test: parallel mergesort
@@ -422,7 +483,47 @@ Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
         StdErr output:
         
         
+Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./mergesort -n 8 -s 44 300000000 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
 Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 16 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
+Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
 Running: timeout 60 ./mergesort -n 32 -s 44 300000000 [+]
 
 Starting test: parallel quicksort
@@ -434,33 +535,24 @@ Running: timeout 15 ./quicksort -n 8 -s 44 -d 12 3000000 [+]
 Running: timeout 15 ./quicksort -n 16 -s 44 -d 12 3000000 [+]
 Running: timeout 15 ./quicksort -n 1 -s 44 -d 15 30000000 [+]
 Running: timeout 15 ./quicksort -n 2 -s 44 -d 15 30000000 [+]
-Running: timeout 15 ./quicksort -n 4 -s 44 -d 15 30000000 [ ]
-        Program terminated with signal 6 (SIGABRT) 
-        --------------------------------------------
-        Program output:
-        
-        StdErr output:
-        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
-        
-Running: timeout 15 ./quicksort -n 8 -s 44 -d 15 30000000 [ ]
-        Program terminated with signal 6 (SIGABRT) 
-        --------------------------------------------
-        Program output:
-        
-        StdErr output:
-        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
-        
+Running: timeout 15 ./quicksort -n 4 -s 44 -d 15 30000000 [+]
+Running: timeout 15 ./quicksort -n 8 -s 44 -d 15 30000000 [+]
 Running: timeout 15 ./quicksort -n 16 -s 44 -d 15 30000000 [+]
 Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 8 -s 44 -d 18 300000000 [+]
 Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
-Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [ ]
-        Program terminated with signal 6 (SIGABRT) 
-        --------------------------------------------
-        Program output:
-        
-        StdErr output:
-        Fatal glibc error: pthread_mutex_lock.c:95 (___pthread_mutex_lock): assertion failed: mutex->__data.
-        
+Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 16 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [+]
+Running: timeout 60 ./quicksort -n 32 -s 44 -d 18 300000000 [+]
 
 Starting test: parallel sum using divide-and-conquer
 ================================================================================
@@ -550,6 +642,14 @@ Running: timeout 60 ./nqueens -n 8 13 [+]
 Running: timeout 60 ./nqueens -n 16 13 [+]
 Running: timeout 60 ./nqueens -n 32 13 [+]
 Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 16 14 [+]
+Running: timeout 60 ./nqueens -n 32 14 [+]
+Running: timeout 60 ./nqueens -n 32 14 [+]
+Running: timeout 60 ./nqueens -n 32 14 [+]
+Running: timeout 60 ./nqueens -n 32 14 [+]
 Running: timeout 60 ./nqueens -n 32 14 [+]
 
 Starting test: parallel Simpson integration
@@ -562,7 +662,103 @@ Running: timeout 60 ./simpson -n 8 [ ]
         StdErr output:
         
         
+Running: timeout 60 ./simpson -n 8 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 8 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 8 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 8 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
 Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 16 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 32 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./simpson -n 32 [ ]
         Program terminated with signal 11 (SIGSEGV) 
         --------------------------------------------
         Program output:
@@ -629,6 +825,70 @@ Running: timeout 60 ./fib_test -n 16 41 [ ]
         StdErr output:
         
         
+Running: timeout 60 ./fib_test -n 16 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 16 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 16 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 16 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 32 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 32 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 32 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
+Running: timeout 60 ./fib_test -n 32 41 [ ]
+        Program terminated with signal 11 (SIGSEGV) 
+        --------------------------------------------
+        Program output:
+        
+        StdErr output:
+        
+        
 Running: timeout 60 ./fib_test -n 32 41 [ ]
         Program terminated with signal 11 (SIGSEGV) 
         --------------------------------------------
@@ -663,11 +923,11 @@ BASIC9:  Basic functionality testing (9)
 MERGESORT:  parallel mergesort
   mergesort small        [X]       [X]       [X]       [X]       [X]                 
   mergesort medium       [X]       [X]       [X]       [X]       [X]                 
-  mergesort large                                      [ ]       [8.411s]  [7.133s]  
+  mergesort large                                      [ ]       [8.180s]  [7.278s]  
 QUICKSORT:  parallel quicksort
   quicksort small        [X]       [X]       [X]       [X]       [X]                 
-  quicksort medium       [X]       [X]       [ ]       [ ]       [X]                 
-  quicksort large                                      [6.973s]  [6.958s]  [ ]       
+  quicksort medium       [X]       [X]       [X]       [X]       [X]                 
+  quicksort large                                      [7.000s]  [7.037s]  [7.053s]  
 PSUM:  parallel sum using divide-and-conquer
   psum_test small        [ ]       [X]       [X]       [X]       [X]                 
   psum_test medium       [ ]       [ ]       [ ]       [ ]       [X]                 
@@ -676,7 +936,7 @@ NQUEENS:  parallel n-queens solver
   nqueens 11             [X]       [X]       [X]       [X]       [X]                 
   nqueens 12             [X]       [X]       [X]       [X]       [X]                 
   nqueens 13                                           [X]       [X]       [X]       
-  nqueens 14                                                     [10.330s] [5.942s]  
+  nqueens 14                                                     [11.312s] [6.773s]  
 SIMPSON:  parallel Simpson integration
   simpson                                              [ ]       [ ]       [ ]       
 FIBONACCI:  parallel fibonacci toy test
@@ -684,6 +944,6 @@ FIBONACCI:  parallel fibonacci toy test
   fibonacci 41                                                   [ ]       [ ]       
 ================================================================================
 You have met minimum requirements, your performance score will count.
-Wrote full results to fj_testdir_2024-03-18_14:30:35.588040/full-results.json
+Wrote full results to fj_testdir_2024-03-20_17:34:27.909628/full-results.json
 
 */
