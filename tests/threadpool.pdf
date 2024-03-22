@@ -1,0 +1,22 @@
+Our implementation uses a work sharing + work helping approach rather than work stealing. In work sharing, 
+the tasks are submitted to a global queue accessible by all worker threads. Worker threads then pull 
+tasks from this shared queue to execute. We also use a single global queue where tasks are added and 
+from which worker threads pull tasks to execute. We attempted to implement work stealing in which, idle threads
+would "steal" tasks from the end of other threads' queues, but did not get it fully functioning.
+The future_get function employs a form of work helping. If the thread calling future_get finds the 
+future is not ready, and it's a worker thread (internal_worker_thread == 1), it attempts to execute 
+a task from the global queue (by calling execute_task). By doing this we prevent worker threads from 
+being idle while waiting for a specific future to become ready, effectively contributing to overall 
+throughout. Worker threads are created at the time of thread pool initialization (thread_pool_new)and 
+are terminated upon calling thread_pool_shutdown_and_destroy. Each worker thread executes the start_routine
+function, where it either waits for tasks to become available in the global queue or terminates if the 
+shutdown flag is set. Threads are signaled using a condition variable (cond_thread_pool). This variable 
+is used to wake up worker threads when there are new tasks in the global queue or when it's time to 
+shutdown. Additionally, each future has its condition variable (cond_future) to signal the completion of 
+its task. Our implementation uses mutexes to protect shared data structures and condition variables 
+to manage thread synchronization efficiently. Specifically, we ensure to lock and unlock the mutexes only 
+when necessary and free/destroy the future and threadpool structs we previously created as needed. Overall,
+our threadpool implementation is a straightforward example of concurrent task execution using a shared 
+task queue model. While it uses work sharing and basic work helping strategies, there is no support 
+for work stealing. Additionally, the synchronization mechanisms used (mutexes and condition variables)
+are sufficient for managing access to shared resources in this threadpool.
