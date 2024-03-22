@@ -73,6 +73,7 @@ struct future
 
 // thread_local variable to keep track of which thread is executing
 static thread_local int internal_worker_thread = 0;
+static thread_local struct worker *current_worker;
 
 // Helper functions
 static void *start_routine(void *arg);
@@ -170,7 +171,6 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
  */
 struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t task, void *data)
 {
-  pthread_mutex_lock(&pool->lock_global_queue);
   struct future *fut = malloc(sizeof(struct future));
 
   // Initializations
@@ -183,10 +183,18 @@ struct future *thread_pool_submit(struct thread_pool *pool, fork_join_task_t tas
   fut->readyFlag = 0;
 
   // Add task to global queue and signal worker thread
-  list_push_back(&pool->global_queue, &fut->elem);
+  if (current_worker) {
+    pthread_mutex_lock(&current_worker->lock_local_queue);
+    list_push_front(&current_worker->local_queue, &fut->elem);
+    pthread_mutex_unlock(&current_worker->lock_local_queue);
+  }
+  else {
+    pthread_mutex_lock(&pool->lock_global_queue);
+    list_push_back(&pool->global_queue, &fut->elem);
+    pthread_mutex_unlock(&pool->lock_global_queue);
+  }
   pthread_cond_signal(&pool->cond_thread_pool);
 
-  pthread_mutex_unlock(&pool->lock_global_queue);
   return fut;
 }
 
@@ -245,6 +253,14 @@ static void *start_routine(void *arg)
 {
   struct thread_pool *pool = (struct thread_pool *)arg;
   internal_worker_thread = 1;
+
+  if (!current_worker) {
+    current_worker = malloc(sizeof(struct worker));
+    list_init(&current_worker->local_queue);
+    pthread_mutex_init(&current_worker->lock_local_queue, NULL);
+    current_worker->pool_worker = pool;
+  }
+
   while (1)
   {
     pthread_mutex_lock(&pool->lock_global_queue);
@@ -257,6 +273,7 @@ static void *start_routine(void *arg)
     if (pool->shutdownFlag)
     {
       pthread_mutex_unlock(&pool->lock_global_queue);
+      free(current_worker);
       return NULL;
     }
     pthread_mutex_unlock(&pool->lock_global_queue);
@@ -272,8 +289,23 @@ static void *start_routine(void *arg)
 // Another static helper function to execute tasks, returns true if a task was executed and false if queue is empty
 static bool execute_task(struct thread_pool *pool)
 {
-  pthread_mutex_lock(&pool->lock_global_queue);
+  pthread_mutex_lock(&current_worker->lock_local_queue);
+  if (current_worker && !list_empty(&current_worker->local_queue)) {
+    struct list_elem *task_elem = list_pop_front(&current_worker->local_queue);
+    struct future *fut = list_entry(task_elem, struct future, elem);
+    pthread_mutex_unlock(&current_worker->lock_local_queue);
 
+    // Execute task and broadcast
+    fut->result = fut->task(pool, fut->args);
+    pthread_mutex_lock(&fut->lock_future);
+    fut->readyFlag = 1;
+    pthread_cond_broadcast(&fut->cond_future);
+    pthread_mutex_unlock(&fut->lock_future);
+    return true;
+  }
+  pthread_mutex_unlock(&current_worker->lock_local_queue);
+
+  pthread_mutex_lock(&pool->lock_global_queue);
   // Check for tasks in the global queue
   if (!list_empty(&pool->global_queue))
   {
