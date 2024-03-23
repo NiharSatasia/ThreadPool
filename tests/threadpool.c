@@ -250,8 +250,9 @@ void *future_get(struct future *fut)
       //pthread_mutex_unlock(&fut->lock_future);
       if (!fut->executing) {
         //execute yourself
-        list_remove(&fut->elem);
         pthread_mutex_unlock(&fut->lock_future);
+        list_remove(&fut->elem);
+        //pthread_mutex_unlock(&fut->lock_future);
         executeSpecific(fut);
         return fut->result;
       }
