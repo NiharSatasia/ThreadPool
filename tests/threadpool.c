@@ -141,6 +141,8 @@ struct thread_pool *thread_pool_new(int nthreads)
   // Creating worker threads
   for (int i = 0; i < nthreads; i++)
   {
+    pool->workerQueues[i] = NULL;
+    pool->workerLocks[i] = NULL;
     if (pthread_create(&pool->worker_threads[i], NULL, start_routine, pool) != 0)
     {
       fprintf(stderr, "failed to create a thread");
@@ -185,7 +187,7 @@ void thread_pool_shutdown_and_destroy(struct thread_pool *pool)
   // Free
   free(pool->worker_threads);
   free(pool->workerQueues);
-  //free(pool->workerLocks);
+  free(pool->workerLocks);
   free(pool);
 }
 
@@ -266,25 +268,10 @@ void *future_get(struct future *fut)
           pthread_cond_wait(&fut->cond_future, &fut->lock_future);
         }
       }
-      // if (executeSpecific(fut) == false && execute_task(fut->pool_future) == false)
-      // {
-      //   //If no task was executed lock and wait
-      //   pthread_mutex_lock(&fut->lock_future);
-      //   if (fut->readyFlag == 0)
-      //   {
-      //     pthread_cond_wait(&fut->cond_future, &fut->lock_future);
-      //   }
-      // }
-      // else
-      // {
-      //   // Lock back up again
-      //   pthread_mutex_lock(&fut->lock_future);
-      // }
     }
     else
     {
       //Wait for task to complete
-      //pthread_cond_broadcast(&fut->pool_future->cond_thread_pool);
       pthread_cond_wait(&fut->cond_future, &fut->lock_future);
     }
   }
@@ -333,29 +320,33 @@ static void *start_routine(void *arg)
 
   while (1)
   {
-    pthread_mutex_lock(&pool->lock_global_queue);
+    //pthread_mutex_lock(&pool->lock_global_queue);
 
 
     // Wait for tasks or shutdown signal
     //pthread_mutex_lock(&current_worker->lock_local_queue);
-    while (list_empty(&current_worker->local_queue) && list_empty(&pool->global_queue) && !pool->shutdownFlag)
+    while (!pool->shutdownFlag && execute_task(pool))
     {
-      pthread_cond_wait(&pool->cond_thread_pool, &pool->lock_global_queue);
+      //execute tasks
     }
     //pthread_mutex_unlock(&current_worker->lock_local_queue);
     if (pool->shutdownFlag)
     {
-      pthread_mutex_unlock(&pool->lock_global_queue);
+      //pthread_mutex_unlock(&pool->lock_global_queue);
       free(current_worker);
       return NULL;
     }
-    pthread_mutex_unlock(&pool->lock_global_queue);
-
-
-    while (execute_task(pool) == true)
-    {
-      // Continue executing tasks until queue is empty
+    else {
+      pthread_mutex_lock(&pool->lock_global_queue);
+      pthread_cond_wait(&pool->cond_thread_pool, &pool->lock_global_queue);
+      pthread_mutex_unlock(&pool->lock_global_queue);
     }
+
+
+    // while (execute_task(pool) == true)
+    // {
+    //   // Continue executing tasks until queue is empty
+    // }
   }
   return NULL;
 }
@@ -398,6 +389,7 @@ static bool execute_task(struct thread_pool *pool)
   // Check for tasks in the global queue
   if (!list_empty(&pool->global_queue))
   {
+    //fprintf(stdout, "%s\n", "global");
     // Pop first task from global queue and unlock
     struct list_elem *task_elem = list_pop_front(&pool->global_queue);
     struct future *fut = list_entry(task_elem, struct future, elem);
@@ -417,23 +409,26 @@ static bool execute_task(struct thread_pool *pool)
 
 
   for (int i = 0; i < pool->nthreads; i++) {
-    pthread_mutex_lock(pool->workerLocks[i]);
-    if (pool->workerQueues[i] != &current_worker->local_queue && !list_empty(pool->workerQueues[i])) {
-      struct list_elem *task_elem = list_pop_back(pool->workerQueues[i]);
-      struct future *fut = list_entry(task_elem, struct future, elem);
-      pthread_mutex_unlock(pool->workerLocks[i]);
+    if (pthread_mutex_trylock(pool->workerLocks[i]) == 0) {
+      if (!list_empty(pool->workerQueues[i])) {
+        fprintf(stdout, "%s\n", "enter");
+        struct list_elem *task_elem = list_pop_back(pool->workerQueues[i]);
+        struct future *fut = list_entry(task_elem, struct future, elem);
+        pthread_mutex_unlock(pool->workerLocks[i]);
 
 
-      // Execute task and broadcast
-      fut->executing = true;
-      fut->result = fut->task(pool, fut->args);
-      pthread_mutex_lock(&fut->lock_future);
-      fut->readyFlag = 1;
-      pthread_cond_broadcast(&fut->cond_future);
-      pthread_mutex_unlock(&fut->lock_future);
-      return true;
+        // Execute task and broadcast
+        fut->executing = true;
+        fut->result = fut->task(pool, fut->args);
+        pthread_mutex_lock(&fut->lock_future);
+        fut->readyFlag = 1;
+        pthread_cond_broadcast(&fut->cond_future);
+        pthread_mutex_unlock(&fut->lock_future);
+        //fprintf(stdout, "%s\n", "yep");
+        return true;
     }
     pthread_mutex_unlock(pool->workerLocks[i]);
+  }
   }
   return false;
 }
