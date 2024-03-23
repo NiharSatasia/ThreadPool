@@ -251,7 +251,9 @@ void *future_get(struct future *fut)
       if (!fut->executing) {
         //execute yourself
         pthread_mutex_unlock(&fut->lock_future);
+        pthread_mutex_lock(&current_worker->lock_local_queue);
         list_remove(&fut->elem);
+        pthread_mutex_unlock(&current_worker->lock_local_queue);
         //pthread_mutex_unlock(&fut->lock_future);
         executeSpecific(fut);
         return fut->result;
